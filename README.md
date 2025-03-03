@@ -1,19 +1,34 @@
 # Go Service Utils
+这是一个基于 Gin 框架的微服务工具包，提供了常用的运维功能，包括健康检查、指标监控、日志管理、缓存、数据库集成和追踪等特性。
 
-这是一个基于Gin框架的微服务工具包，提供了常用的运维功能，包括健康检查、指标监控、日志管理、缓存、数据库集成和追踪等特性。
+## 目录
+
+- [Go Service Utils](#go-service-utils)
+  - [目录](#目录)
+  - [功能特性](#功能特性)
+  - [快速开始](#快速开始)
+    - [安装](#安装)
+    - [基础使用](#基础使用)
+  - [核心组件](#核心组件)
+    - [配置管理](#配置管理)
+    - [缓存集成](#缓存集成)
+  - [部署运维](#部署运维)
+    - [Docker 部署](#docker-部署)
+    - [监控告警](#监控告警)
+  - [贡献](#贡献)
 
 ## 功能特性
 
-- 健康检查中间件
-- Prometheus指标收集
-- Panic恢复和日志记录
-- 日志轮转和压缩
-- Redis缓存集成
-- 数据库连接管理
-- 分布式追踪
-- 服务核心引擎
-- 配置管理（支持动态加载）
-- 邮件通知功能
+- ✨ 健康检查中间件 - 提供服务健康状态监控
+- 📊 Prometheus 指标收集 - 支持自定义指标和默认服务指标
+- 🛡️ Panic 恢复和日志记录 - 自动捕获并记录异常
+- 📝 日志轮转和压缩 - 支持按大小、时间的日志管理
+- 🚀 Redis 缓存集成 - 支持集群和哨兵模式
+- 💾 数据库连接管理 - 支持 MySQL、PostgreSQL、SQLite
+- 🔍 分布式追踪 - OpenTelemetry 集成
+- 🎯 服务核心引擎 - 基于 Gin 的增强功能
+- ⚙️ 配置管理 - 支持多种格式和动态加载
+- 📧 邮件通知 - 支持模板和 HTML 格式
 
 ## 快速开始
 
@@ -23,7 +38,9 @@
 go get github.com/shrimps80/go-service-utils
 ```
 
-### 基础使用示例
+### 基础使用
+
+创建一个简单的 HTTP 服务：
 
 ```go
 package main
@@ -31,6 +48,7 @@ package main
 import (
     "github.com/shrimps80/go-service-utils/core"
     "github.com/shrimps80/go-service-utils/logger"
+    "github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -62,9 +80,49 @@ func main() {
 }
 ```
 
-## 高级功能
+## 核心组件
 
-### Redis缓存集成
+### 配置管理
+
+支持 YAML、JSON、TOML 等多种格式的配置文件，支持配置热重载：
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/fsnotify/fsnotify"
+    "github.com/shrimps80/go-service-utils/config"
+)
+
+func main() {
+    opts := &config.Options{
+        ConfigType: "yaml",
+        ConfigName: "config",
+        ConfigPaths: []string{".", "./config"},
+    }
+
+    cfg, err := config.New(opts)
+    if err != nil {
+        panic(err)
+    }
+
+    // 监听配置变化
+    cfg.OnConfigChange(func(e fsnotify.Event) {
+        fmt.Printf("配置文件已更新: %s\n", e.Name)
+    })
+    cfg.StartWatch()
+
+    // 获取配置
+    appName := cfg.GetString("app.name")
+    port := cfg.GetInt("server.port")
+    fmt.Printf("应用: %s, 端口: %d\n", appName, port)
+}
+```
+
+### 缓存集成
+
+ Redis 缓存支持：
 
 ```go
 package main
@@ -76,7 +134,6 @@ import (
 )
 
 func main() {
-    // 配置Redis客户端
     redisConfig := &cache.RedisConfig{
         Addrs:      []string{"localhost:6379"},
         Password:   "",
@@ -86,7 +143,6 @@ func main() {
         Timeout:    time.Second * 5,
     }
 
-    // 创建Redis客户端
     redis, err := cache.NewRedis(redisConfig)
     if err != nil {
         panic(err)
@@ -108,161 +164,9 @@ func main() {
 }
 ```
 
-### 配置管理
+## 部署运维
 
-```go
-package main
-
-import (
-    "fmt"
-    "github.com/fsnotify/fsnotify"
-    "github.com/shrimps80/go-service-utils/config"
-)
-
-func main() {
-    // 配置选项
-    opts := &config.Options{
-        ConfigType: "yaml",
-        ConfigName: "config",
-        ConfigPaths: []string{".", "./config"},
-    }
-
-    // 创建配置管理器
-    cfg, err := config.New(opts)
-    if err != nil {
-        panic(err)
-    }
-
-    // 监听配置文件变化
-    cfg.OnConfigChange(func(e fsnotify.Event) {
-        fmt.Printf("配置文件已更新: %s，事件类型: %s\n", e.Name, e.Op)
-        if e.Op&fsnotify.Write == fsnotify.Write {
-            // 获取更新后的配置
-            newValue := cfg.GetString("app.name")
-            fmt.Printf("新的应用名称: %s\n", newValue)
-        }
-    })
-
-    // 启动配置文件监听
-    cfg.StartWatch()
-
-    // 获取配置值
-    appName := cfg.GetString("app.name")
-    port := cfg.GetInt("server.port")
-    debug := cfg.GetBool("app.debug")
-
-    // 获取所有配置
-    allConfig := cfg.GetAll()
-    fmt.Printf("完整配置: %+v\n", allConfig)
-
-    // 获取当前使用的配置文件
-    configFile := cfg.GetConfigFile()
-    fmt.Printf("当前配置文件: %s\n", configFile)
-
-    // 修改配置
-    cfg.Set("app.version", "1.0.1")
-    
-    // 保存配置到文件
-    if err := cfg.WriteConfig(); err != nil {
-        panic(err)
-    }
-
-    // 如果需要停止监听配置变更
-    // cfg.StopWatch()
-}
-```
-
-### 数据库集成
-
-```go
-package main
-
-import (
-    "github.com/shrimps80/go-service-utils/database"
-    "time"
-)
-
-func main() {
-    // 配置数据库连接
-    dbConfig := &database.Config{
-        Type:         "mysql",
-        DSN:          "user:password@tcp(localhost:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local",
-        MaxIdleConns: 10,
-        MaxOpenConns: 100,
-        MaxLifetime:  time.Hour,
-        Debug:        true,
-    }
-
-    // 创建数据库连接
-    db, err := database.New(dbConfig)
-    if err != nil {
-        panic(err)
-    }
-
-    // 使用GORM进行数据库操作
-    type User struct {
-        ID   uint
-        Name string
-    }
-
-    // 自动迁移
-    db.AutoMigrate(&User{})
-
-    // 创建记录
-    user := User{Name: "test"}
-    db.Create(&user)
-}
-```
-
-### 邮件通知
-
-```go
-package main
-
-import (
-    "github.com/shrimps80/go-service-utils/notification"
-)
-
-func main() {
-    // 配置邮件客户端
-    mailConfig := &notification.MailConfig{
-        Host:     "smtp.example.com",
-        Port:     587,
-        Username: "your-email@example.com",
-        Password: "your-password",
-        From:     "your-email@example.com",
-        UseTLS:   true,
-    }
-
-    // 创建邮件客户端
-    mailClient := notification.NewMailClient(mailConfig)
-
-    // 添加邮件模板
-    template := &notification.MailTemplate{
-        Subject: "告警通知: {{.Title}}",
-        Body:    "<h1>{{.Title}}</h1><p>{{.Content}}</p>",
-    }
-    mailClient.AddTemplate("alert", template)
-
-    // 发送邮件
-    data := map[string]string{
-        "Title":   "服务异常",
-        "Content": "CPU使用率超过90%",
-    }
-    err := mailClient.SendMail(
-        []string{"admin@example.com"},
-        "alert",
-        data,
-    )
-    if err != nil {
-        panic(err)
-    }
-}
-```
-
-## 部署与运维
-
-### Docker部署
+### Docker 部署
 
 ```dockerfile
 FROM golang:1.22-alpine
@@ -277,27 +181,9 @@ EXPOSE 8080
 CMD ["/app/main"]
 ```
 
-### 资源配置
+### 监控告警
 
-```yaml
-# docker-compose.yml
-version: '3'
-services:
-  app:
-    build: .
-    ports:
-      - "8080:8080"
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 512M
-        reservations:
-          cpus: '0.5'
-          memory: 256M
-```
-
-### 监控配置
+Prometheus 配置示例：
 
 ```yaml
 # prometheus.yml
@@ -318,33 +204,8 @@ groups:
       severity: critical
     annotations:
       summary: High error rate detected
-
-  - alert: SlowResponses
-    expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: Slow response times detected
 ```
 
-### 负载均衡
+## 贡献
 
-```nginx
-# nginx.conf
-upstream backend {
-    server localhost:8080;
-    check interval=3000 rise=2 fall=5 timeout=1000 type=http;
-    check_http_send "HEAD /health HTTP/1.0\r\n\r\n";
-    check_http_expect_alive http_2xx;
-}
-
-server {
-    listen 80;
-    location / {
-        proxy_pass http://backend;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
+欢迎提交 Issue 和 Pull Request！
