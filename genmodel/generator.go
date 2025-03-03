@@ -206,7 +206,6 @@ const defaultTemplate = `package {{.PackageName}}
 
 import (
 	"time"
-	"gorm.io/gorm"
 )
 
 type {{.StructName}} struct {
