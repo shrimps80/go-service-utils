@@ -71,29 +71,32 @@ func Error(c *gin.Context, errCode *ErrorCode, opts ...ResponseOption) {
 
 	// 根据错误类型设置HTTP状态码
 	httpStatus := http.StatusInternalServerError
-	switch errCode.Type {
-	case ErrorTypeValidate:
-		httpStatus = http.StatusBadRequest
-	case ErrorTypeBusiness:
-		if errCode.Code >= 2000 && errCode.Code < 3000 {
-			switch errCode.Code {
-			case 2000: // ErrUnauthorized
-				httpStatus = http.StatusUnauthorized
-			case 2001: // ErrForbidden
-				httpStatus = http.StatusForbidden
-			default:
-				httpStatus = http.StatusBadRequest
-			}
-		} else if errCode.Code >= 4000 && errCode.Code < 5000 {
-			if errCode.Code == 4000 { // ErrNotFound
-				httpStatus = http.StatusNotFound
-			} else {
-				httpStatus = http.StatusBadRequest
-			}
-		}
-	case ErrorTypeSystem:
-		httpStatus = http.StatusInternalServerError
+	if errCode.Type == ErrorTypeBusiness || errCode.Type == ErrorTypeValidate {
+		httpStatus = http.StatusOK
 	}
+	// switch errCode.Type {
+	// case ErrorTypeValidate:
+	// 	httpStatus = http.StatusBadRequest
+	// case ErrorTypeBusiness:
+	// 	if errCode.Code >= 2000 && errCode.Code < 3000 {
+	// 		switch errCode.Code {
+	// 		case 2000: // ErrUnauthorized
+	// 			httpStatus = http.StatusUnauthorized
+	// 		case 2001: // ErrForbidden
+	// 			httpStatus = http.StatusForbidden
+	// 		default:
+	// 			httpStatus = http.StatusBadRequest
+	// 		}
+	// 	} else if errCode.Code >= 4000 && errCode.Code < 5000 {
+	// 		if errCode.Code == 4000 { // ErrNotFound
+	// 			httpStatus = http.StatusNotFound
+	// 		} else {
+	// 			httpStatus = http.StatusBadRequest
+	// 		}
+	// 	}
+	// case ErrorTypeSystem:
+	// 	httpStatus = http.StatusInternalServerError
+	// }
 
 	c.JSON(httpStatus, resp)
 }
