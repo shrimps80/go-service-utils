@@ -34,7 +34,7 @@ func WithMessage(message string) ResponseOption {
 // Success 成功响应
 func Success(c *gin.Context, data interface{}, opts ...ResponseOption) {
 	resp := &Response{
-		Code:    0,
+		Code:    1,
 		Message: "success",
 		Data:    data,
 	}
