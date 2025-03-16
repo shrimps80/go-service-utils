@@ -95,8 +95,8 @@ func (r *Redis) Publish(ctx context.Context, channel string, message interface{}
 }
 
 // Hset 设置哈希表字段值
-func (r *Redis) Hset(ctx context.Context, key string, field string, value ...interface{}) error {
-	return r.client.HSet(ctx, key, field, value).Err()
+func (r *Redis) Hset(ctx context.Context, key string, value ...interface{}) error {
+	return r.client.HSet(ctx, key, value).Err()
 }
 
 // Hget 获取哈希表字段值
