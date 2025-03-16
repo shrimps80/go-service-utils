@@ -93,3 +93,23 @@ func (r *Redis) Subscribe(ctx context.Context, channels ...string) *redis.PubSub
 func (r *Redis) Publish(ctx context.Context, channel string, message interface{}) error {
 	return r.client.Publish(ctx, channel, message).Err()
 }
+
+// Hset 设置哈希表字段值
+func (r *Redis) Hset(ctx context.Context, key string, field string, value interface{}) error {
+	return r.client.HSet(ctx, key, field, value).Err()
+}
+
+// Hget 获取哈希表字段值
+func (r *Redis) Hget(ctx context.Context, key string, field string) (string, error) {
+	return r.client.HGet(ctx, key, field).Result()
+}
+
+// HGetAll 获取哈希表所有字段和值
+func (r *Redis) HGetAll(ctx context.Context, key string) (map[string]string, error) {
+	return r.client.HGetAll(ctx, key).Result()
+}
+
+// ExpireAt 设置过期时间
+func (r *Redis) ExpireAt(ctx context.Context, key string, expiration time.Time) error {
+	return r.client.ExpireAt(ctx, key, expiration).Err()
+}
