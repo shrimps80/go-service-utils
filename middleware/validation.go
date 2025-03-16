@@ -29,6 +29,12 @@ func InitValidator() {
 			return name
 		})
 
+		// 注册标签名函数
+		v.RegisterTagNameFunc(func(fld reflect.StructField) string {
+			// 获取标签名
+			return fld.Tag.Get("label")
+		})
+
 		// 初始化中文翻译器
 		zh := zh.New()
 		uni := ut.New(zh, zh)
