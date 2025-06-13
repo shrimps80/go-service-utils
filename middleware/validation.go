@@ -10,29 +10,38 @@ import (
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	zh_translations "github.com/go-playground/validator/v10/translations/zh"
-	"github.com/shrimps80/go-service-utils/utils"
 )
 
 var (
 	trans ut.Translator // 全局翻译器实例
 )
 
+// ValidationError 自定义验证错误类型
+type ValidationError struct {
+	Message string      `json:"message"`
+	Field   string      `json:"field"`
+	Tag     string      `json:"tag"`
+	Value   interface{} `json:"value"`
+}
+
 // InitValidator 初始化验证器和翻译器
 func InitValidator() {
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		// 注册JSON字段名处理
+		// 注册字段名处理函数，优先使用label标签，其次使用json标签
 		v.RegisterTagNameFunc(func(fld reflect.StructField) string {
-			name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
-			if name == "-" {
-				return ""
+			// 优先使用label标签作为字段名
+			if label := fld.Tag.Get("label"); label != "" {
+				return label
 			}
-			return name
-		})
-
-		// 注册标签名函数
-		v.RegisterTagNameFunc(func(fld reflect.StructField) string {
-			// 获取标签名
-			return fld.Tag.Get("label")
+			// 其次使用json标签
+			if jsonTag := fld.Tag.Get("json"); jsonTag != "" {
+				name := strings.SplitN(jsonTag, ",", 2)[0]
+				if name != "-" {
+					return name
+				}
+			}
+			// 最后使用字段名
+			return fld.Name
 		})
 
 		// 初始化中文翻译器
@@ -43,43 +52,9 @@ func InitValidator() {
 		// 注册默认翻译
 		_ = zh_translations.RegisterDefaultTranslations(v, trans)
 
-		// 注册自定义验证规则
+		// 注册自定义验证规则和翻译
 		registerCustomValidations(v)
-	}
-}
-
-// ValidationMiddleware 验证中间件
-func ValidationMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// 仅处理需要验证的请求
-		if c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "PATCH" {
-			// 在实际业务处理中自动验证，此处只设置错误处理
-			c.Next()
-
-			// 检查是否存在验证错误
-			if len(c.Errors) > 0 {
-				var validationErrors validator.ValidationErrors
-				for _, ginErr := range c.Errors {
-					if errs, ok := ginErr.Err.(validator.ValidationErrors); ok {
-						validationErrors = errs
-						break
-					}
-				}
-
-				// 转换验证错误信息
-				if validationErrors != nil {
-					errMessages := make(map[string]string)
-					for _, err := range validationErrors {
-						errMessages[err.Field()] = err.Translate(trans)
-					}
-
-					// 使用统一的错误响应格式
-					utils.Error(c, utils.ErrInvalidParam, utils.WithMessage("请求参数验证失败"))
-					return
-				}
-			}
-		}
-		c.Next()
+		registerCustomTranslations(v)
 	}
 }
 
@@ -90,31 +65,46 @@ func registerCustomValidations(v *validator.Validate) {
 		value := fl.Field().String()
 		return len(value) == 11 && strings.HasPrefix(value, "1")
 	})
+}
 
-	// 添加对应的翻译
+// registerCustomTranslations 注册自定义翻译
+func registerCustomTranslations(v *validator.Validate) {
+	// 只注册自定义验证规则的翻译，不重复注册默认规则
+
+	// 注册手机号验证的翻译
 	_ = v.RegisterTranslation("mobile", trans, func(ut ut.Translator) error {
 		return ut.Add("mobile", "{0}格式不正确", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("mobile", fe.Field())
 		return t
 	})
+
+	// 可以在这里添加其他自定义验证规则的翻译
 }
 
 // ShouldBindWithValidation 带自动验证的绑定方法
 func ShouldBindWithValidation(c *gin.Context, obj interface{}) error {
 	if err := c.ShouldBind(obj); err != nil {
 		if validationErrors, ok := err.(validator.ValidationErrors); ok {
-			errMessages := make(map[string]string)
-			for _, err := range validationErrors {
-				errMessages[err.Field()] = err.Translate(trans)
-			}
-			return &gin.Error{
-				Err:  validationErrors,
-				Type: gin.ErrorTypeBind,
-				Meta: errMessages,
+			// 获取第一个验证错误的中文信息
+			if len(validationErrors) > 0 {
+				firstError := validationErrors[0]
+				chineseMsg := firstError.Translate(trans)
+
+				// 创建一个包含中文错误信息的自定义错误
+				return &ValidationError{
+					Message: chineseMsg,
+					Field:   firstError.Field(),
+					Tag:     firstError.Tag(),
+					Value:   firstError.Value(),
+				}
 			}
 		}
 		return err
 	}
 	return nil
+}
+
+func (e *ValidationError) Error() string {
+	return e.Message
 }
