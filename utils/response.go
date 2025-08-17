@@ -74,29 +74,39 @@ func Error(c *gin.Context, errCode *ErrorCode, opts ...ResponseOption) {
 	if errCode.Type == ErrorTypeBusiness || errCode.Type == ErrorTypeValidate {
 		httpStatus = http.StatusOK
 	}
-	// switch errCode.Type {
-	// case ErrorTypeValidate:
-	// 	httpStatus = http.StatusBadRequest
-	// case ErrorTypeBusiness:
-	// 	if errCode.Code >= 2000 && errCode.Code < 3000 {
-	// 		switch errCode.Code {
-	// 		case 2000: // ErrUnauthorized
-	// 			httpStatus = http.StatusUnauthorized
-	// 		case 2001: // ErrForbidden
-	// 			httpStatus = http.StatusForbidden
-	// 		default:
-	// 			httpStatus = http.StatusBadRequest
-	// 		}
-	// 	} else if errCode.Code >= 4000 && errCode.Code < 5000 {
-	// 		if errCode.Code == 4000 { // ErrNotFound
-	// 			httpStatus = http.StatusNotFound
-	// 		} else {
-	// 			httpStatus = http.StatusBadRequest
-	// 		}
-	// 	}
-	// case ErrorTypeSystem:
-	// 	httpStatus = http.StatusInternalServerError
-	// }
+	switch errCode.Type {
+	case ErrorTypeValidate:
+		httpStatus = http.StatusBadRequest
+	case ErrorTypeBusiness:
+		if errCode.Code >= 2000 && errCode.Code < 3000 {
+			switch errCode.Code {
+			case 2000: // ErrUnauthorized
+				httpStatus = http.StatusUnauthorized
+			case 2001: // ErrForbidden
+				httpStatus = http.StatusForbidden
+			default:
+				httpStatus = http.StatusBadRequest
+			}
+		} else if errCode.Code >= 4000 && errCode.Code < 5000 {
+			if errCode.Code == 4000 { // ErrNotFound
+				httpStatus = http.StatusNotFound
+			} else {
+				httpStatus = http.StatusBadRequest
+			}
+		} else if errCode.Code >= 10000003 && errCode.Code <= 10000007 {
+			// 认证相关错误码处理
+			// 根据错误码定义：
+			// 10000003 - Unauthorized (鉴权失败)
+			// 10000004 - UnauthorizedAuthNotExist (鉴权失败, Token不存在)
+			// 10000005 - UnauthorizedTokenError (鉴权失败, Token错误)
+			// 10000006 - UnauthorizedTokenTimeout (鉴权失败, Token超时)
+			// 10000007 - UnauthorizedTokenGenerate (鉴权失败, Token生成失败)
+			// 这些都应该返回 401 Unauthorized 状态码。
+			httpStatus = http.StatusUnauthorized
+		}
+	case ErrorTypeSystem:
+		httpStatus = http.StatusInternalServerError
+	}
 
 	c.JSON(httpStatus, resp)
 }
