@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -60,10 +61,40 @@ func InitValidator() {
 
 // registerCustomValidations 注册自定义验证规则
 func registerCustomValidations(v *validator.Validate) {
-	// 示例：手机号验证
+	// 手机号验证
 	v.RegisterValidation("mobile", func(fl validator.FieldLevel) bool {
 		value := fl.Field().String()
 		return len(value) == 11 && strings.HasPrefix(value, "1")
+	})
+
+	// 数字或数字+逗号验证
+	v.RegisterValidation("numeric_comma", func(fl validator.FieldLevel) bool {
+		value := fl.Field().String()
+
+		// 允许为空
+		if value == "" {
+			return true
+		}
+
+		// 检查是否只包含数字和逗号
+		matched, _ := regexp.MatchString(`^[0-9,]+$`, value)
+		if !matched {
+			return false
+		}
+
+		// 检查逗号分隔的每个部分都是数字（不允许空值）
+		parts := strings.Split(value, ",")
+		for _, part := range parts {
+			if part == "" {
+				return false // 不允许连续的逗号或开头结尾的逗号
+			}
+			// 使用内置的number验证规则验证每个部分
+			if err := v.Var(part, "number"); err != nil {
+				return false
+			}
+		}
+
+		return true
 	})
 }
 
@@ -76,6 +107,14 @@ func registerCustomTranslations(v *validator.Validate) {
 		return ut.Add("mobile", "{0}格式不正确", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("mobile", fe.Field())
+		return t
+	})
+
+	// 注册数字+逗号验证的翻译
+	_ = v.RegisterTranslation("numeric_comma", trans, func(ut ut.Translator) error {
+		return ut.Add("numeric_comma", "{0}必须是数字或用逗号分隔的数字", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("numeric_comma", fe.Field())
 		return t
 	})
 
