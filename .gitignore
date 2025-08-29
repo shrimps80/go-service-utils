@@ -1,4 +1,5 @@
 .idea/
 .DS_Store
-example
+examples
+examples1
 go.sum
