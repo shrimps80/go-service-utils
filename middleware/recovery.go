@@ -6,11 +6,11 @@ import (
 	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
+	"github.com/shrimps80/go-service-utils/logger"
 )
 
 // Recovery returns a middleware that recovers from any panics and writes a 500 if there was one.
-func Recovery(logger *zap.Logger) gin.HandlerFunc {
+func Recovery(logger *logger.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
@@ -19,10 +19,10 @@ func Recovery(logger *zap.Logger) gin.HandlerFunc {
 
 				// 记录错误日志
 				logger.Error("panic recovered",
-					zap.Any("error", err),
-					zap.String("stack", stack),
-					zap.String("path", c.Request.URL.Path),
-					zap.String("method", c.Request.Method),
+					"error", err,
+					"stack", stack,
+					"path", c.Request.URL.Path,
+					"method", c.Request.Method,
 				)
 
 				// 返回500错误
