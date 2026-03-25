@@ -74,6 +74,62 @@ func (r *Redis) Del(ctx context.Context, keys ...string) error {
 	return r.client.Del(ctx, keys...).Err()
 }
 
+// Exists 检查键是否存在
+func (r *Redis) Exists(ctx context.Context, keys ...string) (int64, error) {
+	return r.client.Exists(ctx, keys...).Result()
+}
+
+// Expire 设置过期时间
+func (r *Redis) Expire(ctx context.Context, key string, expiration time.Duration) error {
+	return r.client.Expire(ctx, key, expiration).Err()
+}
+
+// ExpireAt 设置过期时间
+func (r *Redis) ExpireAt(ctx context.Context, key string, expiration time.Time) error {
+	return r.client.ExpireAt(ctx, key, expiration).Err()
+}
+
+// TTL 获取剩余过期时间
+func (r *Redis) TTL(ctx context.Context, key string) (time.Duration, error) {
+	return r.client.TTL(ctx, key).Result()
+}
+
+// Keys 获取所有匹配的键（生产环境慎用，性能较差）
+func (r *Redis) Keys(ctx context.Context, pattern string) ([]string, error) {
+	return r.client.Keys(ctx, pattern).Result()
+}
+
+// Scan 使用游标遍历键（推荐用于生产环境）
+func (r *Redis) Scan(ctx context.Context, cursor uint64, match string, count int64) ([]string, uint64, error) {
+	return r.client.Scan(ctx, cursor, match, count).Result()
+}
+
+// ScanKeys 使用 Scan 获取所有匹配的键（封装好的方法）
+func (r *Redis) ScanKeys(ctx context.Context, pattern string) ([]string, error) {
+	var keys []string
+	var cursor uint64
+
+	for {
+		var batch []string
+		var err error
+
+		// 每次扫描 100 个键
+		batch, cursor, err = r.client.Scan(ctx, cursor, pattern, 100).Result()
+		if err != nil {
+			return nil, err
+		}
+
+		keys = append(keys, batch...)
+
+		// 游标为 0 表示扫描完成
+		if cursor == 0 {
+			break
+		}
+	}
+
+	return keys, nil
+}
+
 // Close 关闭连接
 func (r *Redis) Close() error {
 	return r.client.Close()
@@ -109,7 +165,22 @@ func (r *Redis) HGetAll(ctx context.Context, key string) (map[string]string, err
 	return r.client.HGetAll(ctx, key).Result()
 }
 
-// ExpireAt 设置过期时间
-func (r *Redis) ExpireAt(ctx context.Context, key string, expiration time.Time) error {
-	return r.client.ExpireAt(ctx, key, expiration).Err()
+// HDel 删除哈希表字段
+func (r *Redis) HDel(ctx context.Context, key string, fields ...string) error {
+	return r.client.HDel(ctx, key, fields...).Err()
+}
+
+// Incr 自增
+func (r *Redis) Incr(ctx context.Context, key string) (int64, error) {
+	return r.client.Incr(ctx, key).Result()
+}
+
+// IncrBy 增加指定值
+func (r *Redis) IncrBy(ctx context.Context, key string, value int64) (int64, error) {
+	return r.client.IncrBy(ctx, key, value).Result()
+}
+
+// GetClient 获取底层客户端（供高级操作使用）
+func (r *Redis) GetClient() redis.UniversalClient {
+	return r.client
 }
