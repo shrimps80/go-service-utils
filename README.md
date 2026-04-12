@@ -86,6 +86,84 @@ func main() {
 }
 ```
 
+### Gin：绑定、分页与错误映射（与 `utils` / `middleware` 配合）
+
+业务码与 HTTP 状态码的约定见下文 **ErrorCode 与 HTTP 状态码**。下面示例展示：查询参数绑定 → 列表 DTO 映射 → 分页成功响应；以及用 `utils.Mapper` 将 `errors.Is` 可识别的业务错误映射为 `*utils.ErrorCode`。
+
+```go
+package main
+
+import (
+	"errors"
+
+	"github.com/gin-gonic/gin"
+	"github.com/shrimps80/go-service-utils/middleware"
+	"github.com/shrimps80/go-service-utils/utils"
+)
+
+var errOutOfStock = errors.New("out of stock")
+
+type listQuery struct {
+	PageNum  int `form:"pageNum" binding:"required,min=1"`
+	PageSize int `form:"pageSize" binding:"required,min=1,max=100"`
+}
+
+type row struct{ ID int }
+type rowDTO struct{ ID int }
+
+func main() {
+	gin.SetMode(gin.ReleaseMode)
+	middleware.InitValidator()
+
+	r := gin.New()
+	mapper := utils.NewMapper().
+		OnIs(errOutOfStock, utils.ErrConflict).
+		Default(utils.ErrInternalServer)
+
+	r.GET("/items", func(c *gin.Context) {
+		var q listQuery
+		if err := middleware.ShouldBindWithValidationQuery(c, &q); err != nil {
+			utils.BadRequest(c, utils.WithMessage(err.Error()))
+			return
+		}
+		rows := []*row{{ID: 1}, {ID: 2}}
+		dtos := utils.MapPtr(rows, func(r *row) *rowDTO { return &rowDTO{ID: r.ID} })
+		page := utils.NewPageData(dtos, q.PageNum, q.PageSize, int64(len(rows)))
+		utils.Success(c, page)
+	})
+
+	r.GET("/order", func(c *gin.Context) {
+		mapper.Write(c, errOutOfStock)
+	})
+
+	_ = r.Run(":8080")
+}
+```
+
+也可直接使用 `utils.SuccessPage(c, list, pageNum, pageSize, total)`，其内部等价于 `utils.Success(c, utils.NewPageData(...))`。
+
+若业务仓库曾使用 `ListResponse` 类型名，可与本库类型兼容：`type ListResponse = utils.PageData`。
+
+自定义匹配函数可使用 `utils.Mapper.On`，其签名为 `utils.ErrMatchFunc`（与 `errors.Is` 同形：`func(err, target error) bool`）。
+
+### ErrorCode 与 HTTP 状态码
+
+`utils.Success` 固定使用 HTTP **200**，响应体为 `{ "code": 1, "msg": "success", "data": ... }`（另有 `trace_id` 等扩展字段）。
+
+`utils.Error` 根据 `ErrorCode.Type` 与 `Code` 区间选择 HTTP 状态码，要点如下：
+
+- **validate**（如 `ErrBadRequest`）：优先 **400 Bad Request**（实现中对部分区间另有细分，见 `utils/response.go`）。
+- **business**：多数为 **200 OK** 或 **400**；鉴权相关（如 2000、2001）对应 **401** / **403**；资源类（如 4000 未找到）对应 **404** 等。
+- **system**：默认 **500 Internal Server Error**。
+
+业务项目一般在 `pkg/errcode` 中定义更多 `*utils.ErrorCode` 常量；HTTP 层仍通过 `utils.Error` / `utils.Mapper.Write` 输出统一 JSON 信封。
+
+### middleware 校验与 `validator` 标签
+
+- **JSON / Query / Form / URI** 使用不同的绑定方法（如 `ShouldBindWithValidation`、`ShouldBindWithValidationQuery`），结构体标签需与来源一致：`json`、`form`、`uri` 等。
+- 库内在 `InitValidator` 中注册了 **`phone`**、**`password`** 等自定义规则；标签名必须与注册名一致，否则会出现 `Undefined validation function`（例如使用 `mobile` 而未注册对应规则）。
+- 字段展示名依赖 `label` 或 `json` 标签（见 `RegisterTagNameFunc`），与前端/文档对齐时优先填 `label`。
+
 ## 核心组件
 
 ### 配置管理

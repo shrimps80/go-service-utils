@@ -52,6 +52,11 @@ func Success(c *gin.Context, data interface{}, opts ...ResponseOption) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// SuccessPage 成功分页响应：将 list、pageNum、pageSize、total 封装为与前端约定的 PageData 后写入标准 Success 信封。
+func SuccessPage(c *gin.Context, list interface{}, pageNum, pageSize int, total int64, opts ...ResponseOption) {
+	Success(c, NewPageData(list, pageNum, pageSize, total), opts...)
+}
+
 // Error 错误响应
 func Error(c *gin.Context, errCode *ErrorCode, opts ...ResponseOption) {
 	resp := &Response{
